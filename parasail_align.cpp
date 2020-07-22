@@ -4,6 +4,7 @@
 #include "kseq.h"
 #include "parasail.h"
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -100,7 +101,7 @@ int main(int argc, char *argv[])
 
         matrix = parasail_matrix_create("ACGT", 5, -1);	
 	//EdlibAlignResult result;
-
+	output_file<<std::left<<std::setw(55)<<"sequence_name"<<std::setw(35)<<"best_oligo_name"<<std::setw(35)<<"best_score"<<std::setw(35)<<"second_best_oligo_name"<<std::setw(35)<<"second_best_score"<<std::endl;
 	int k = 25;
 	//std::cout<<k;
 	int c = 1;
@@ -129,12 +130,13 @@ int main(int argc, char *argv[])
 		
 			if(one_line.length() > 75) {
                                 sequence2 = temporary.substr(temporary.find('A'));
-		
+				std::string temp2 = temporary.substr(temporary.find('F'));
 				probe_no = one_line.substr(0,one_line.find(' '));
-				probe_name = one_line.substr(8,14);
+				probe_name = temp2.substr(0,temp2.find('A'));
+				//std::cout<<temp2<<std::endl;
 
 			}
-			//std::cout<<removeDupWord(temporary)<<std::endl;
+			//std::cout<<probe_name<<std::endl;
 			//subString_control(sequence2, sequence2.length(), k);
 
 			char seq_arr[sequence2.length() + 1];
@@ -154,7 +156,7 @@ int main(int argc, char *argv[])
 					parasail_result_t *result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),seq_arr,sequence2.length(),5,4,matrix);
 					//std::cout<<"testing2"<<seq_arr<<std::endl;
 					parasail_traceback_t *traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), seq_arr, sequence2.length(),matrix,'|','*','*');
-					std::cout<<traceback->ref<<std::endl<<std::endl;
+					//std::cout<<traceback->ref<<std::endl<<std::endl;
 					if(result->score > max) {
 						second_max = max;
 						max = result->score;
@@ -198,20 +200,23 @@ int main(int argc, char *argv[])
 		}
 		//subString_test(sequence, sequence.length(), 10);
 		//test_substrings.erase(test_substrings.begin(),test_substrings.end());
-		std::cout<<"Testing"<<best_ref<<std::endl;
-		std::cout<<"testing2"<<second_best_ref<<std::endl;
-		std::cout<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
+		//std::cout<<"Testing"<<best_ref<<std::endl;
+		//std::cout<<"testing2"<<second_best_ref<<std::endl;
+		/*std::cout<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
 		std::cout<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no<<"\n\n";
 		std::cout<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
 		std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nProbe name:"<<second_best_probe_no<<"\n\n";
-		std::cout<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";
-
-                output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
+		std::cout<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";*/
+		std::cout<<"Calculating "<<c<<"....."<<std::endl;
+		//std::cout<<best_probe_name<<"\t"<<second_best_probe_name<<std::endl;
+		
+		output_file<<std::left<<std::setw(55)<<seq->name.s<<std::setw(35)<<best_probe_name<<std::setw(35)<<max<<std::setw(35)<<second_best_probe_name<<std::setw(35)<<second_max<<std::endl;
+                /*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
                 output_file<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no;
 		output_file<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
                 output_file<<"\n\nSecond Highest Score:"<<second_max<<"\nProbe name:"<<second_best_probe_no<<std::endl;
 		output_file<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";
-
+		*/
 		c++;
 		//output_file<<"\nHighest Score: ";
 		//output_file<<max;
