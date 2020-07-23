@@ -12,18 +12,21 @@
 #include <unordered_map>
 #include <unordered_map>
 //#include "edlib.h"
+#include <vector>
+#include <algorithm>
 
 KSEQ_INIT(gzFile, gzread)
 
-std::unordered_map<std::string,int> control_substrings, test_substrings;
+std::unordered_map<std::string,std::string> control_substrings;
+std::unordered_map<std::string,int> test_substrings;
 
-void subString_control(std::string s, int n, int sub_length)  
+void subString_control(std::string s, int n, int sub_length,std::string probe_name)  
 { 
     //std::unordered_map<std::string,int> temp_array;
     //#pragma omp parallel for
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
-                control_substrings.insert({s.substr(i, sub_length), 1});
+                control_substrings.insert({s.substr(i, sub_length), s});
         }
 	
     //control_substrings = temp_array;
@@ -38,9 +41,9 @@ void subString_test(std::string s, int n, int sub_length)
 } 
 
 bool find_substring(std::string to_find) {
-    std::unordered_map<std::string,int>::const_iterator got = control_substrings.find (to_find);
+    std::unordered_map<std::string,int>::const_iterator got = test_substrings.find (to_find);
 
-    if ( got == control_substrings.end() ) {
+    if ( got == test_substrings.end() ) {
         return false;
     }
     else {
@@ -93,9 +96,94 @@ int main(int argc, char *argv[])
 	//FILE *out_file;
 	//out_file = fopen("traceback_output.txt", "w");
 
-	int k = 25;
-	
+	int k = 17;
+	int max = 0,second_max = 0;	
+	int c = 1;
+        std::string probe_name;
+        getline(control_fd, one_line);
+        while(control_fd) {
+            getline(control_fd,one_line);
+            //std::cout<<one_line<<std::endl;
+            if(one_line.length() > 75) {
+                sequence2 = one_line.substr(one_line.find('A'));
+                std::string temp = one_line.substr(one_line.find('F'));
+                probe_name = temp.substr(0,temp.find('A'));
+            }
+            //std::cout<<"Calculating "<<c<<"....\n";
+            c++;
+            subString_control(sequence2, sequence2.length(), k, probe_name);
+        }
+	std::cout<<"Calculated "<<c<<" control sequence.....\n";
+        //int max = 0, second_max = 0,
+	c = 1;
+        while ((l = kseq_read(seq)) >= 0) {
+            //std::cout<<seq->name.s<<std::endl<<seq->seq.s<<std::endl;
+	    max = 0;
+	    second_max = 0;
+            std::string sequence(seq->seq.s);
+        
+            subString_test(sequence,sequence.length(),k);
 
+            std::vector<std::string> control_set;
+
+            std::unordered_map<std::string,std::string>::iterator itr = control_substrings.begin();
+
+            while (itr != control_substrings.end()) {                    
+                if(find_substring(itr->first) == true) {
+                    //std::cout<<"Found\n";
+                    if(std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end()) {
+                        control_set.push_back(itr->second);
+                    }
+                }
+                else
+                {
+                    //std::cout<<"Not Found\n";
+                }
+                itr++;
+            }
+
+            for(auto i = 0; i<control_set.size();i++) {
+                //std::cout<<control_set[i]<<std::endl;
+                //call parasail here
+		char seq_arr[control_set[i].length() + 1];
+                strcpy(seq_arr,control_set[i].c_str());
+
+                parasail_result_t *result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),seq_arr,control_set[i].length(),5,4,matrix);
+                //parasail_traceback_t *traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), seq_arr, control_set[i].length(),matrix,'|','*','*');
+                if(result->score > max) {
+                    second_max = max;
+                    max = result->score;
+                    //best_result = result;
+                    //second_best_probe_no = best_probe_no;
+                    //second_best_probe_name = best_probe_name;
+                    //best_probe_no = probe_no;
+                    //best_probe_name = probe_name;
+                    //second_best_query = best_query;
+                    //second_best_ref = best_ref;
+                    //second_best_comp = best_comp;
+                    //best_ref = traceback ->ref;
+                    //best_comp = traceback->comp;
+                    //best_query = traceback->query;
+                    //std::cout<<traceback->ref<<std::endl;
+                }
+                //parasail_traceback_free(traceback);
+                parasail_result_free(result);
+            }
+		std::cout<<"Calculating sequence "<<c<<".....\n";
+		std::cout<<"Highest Score:"<<max<<std::endl;
+		std::cout<<"Second Highest Score:"<<second_max<<std::endl;
+        	c++;
+	}
+
+	//std::cout<<"testing1\n";
+	//std::unordered_map<std::string,std::string>::iterator itr = control_substrings.begin();
+
+        //while (itr != control_substrings.end()) {
+            //std::cout<<"testing:"<<itr->second<<std::endl;
+            //itr++;
+        //}
+
+	/*
 	while ((l = kseq_read(seq)) >= 0) {
 		
 		std::string sequence(seq->seq.s);
@@ -156,7 +244,7 @@ int main(int argc, char *argv[])
 					if (result.status == EDLIB_STATUS_OK) {
 						if(result.editDistance>max > 0)
 							max = result.editDistance;
-					}*/
+					}
 					break;
 				}
 					//Call Parasail here!!
@@ -180,7 +268,7 @@ int main(int argc, char *argv[])
 		std::cout<< best_query<<"\n"<<best_comp<<"\n"<<best_ref<<std::endl;
 
 
-	}
+	}*/
 	//parasail_traceback_free(traceback);
 	//parasail_result_free(result);
 	parasail_matrix_free(matrix);
