@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 	//FILE *out_file;
 	//out_file = fopen("traceback_output.txt", "w");
 
-	int k = 17;
+	int k = 15;
 	int max = 0,second_max = 0;	
 	int c = 1;
         std::string probe_name;
