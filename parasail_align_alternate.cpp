@@ -19,10 +19,10 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-std::unordered_map<std::string,std::string> control_substrings;
-std::unordered_map<std::string,int> test_substrings;
+//std::unordered_map<std::string,std::string> control_substrings;
+//std::unordered_map<std::string,int> test_substrings;
 
-void subString_control(std::string& s, int n, int sub_length,std::string& probe_name)  { 
+void subString_control(std::string& s, int n, int sub_length,std::string& probe_name, std::unordered_map<std::string,std::string>& control_substrings)  { 
     //std::unordered_map<std::string,int> temp_array;
     //#pragma omp parallel for
     for (int i = 0; i < n; i++)  
@@ -33,14 +33,14 @@ void subString_control(std::string& s, int n, int sub_length,std::string& probe_
     //control_substrings = temp_array;
 } 
 
-void subString_test(std::string& s, int n, int sub_length)  {
+void subString_test(std::string& s, int n, int sub_length, std::unordered_map<std::string,int>& test_substrings)  {
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             test_substrings.insert({s.substr(i, sub_length), 1});
         }
 } 
 
-bool find_substring(std::string to_find) {
+bool find_substring(std::string to_find, std::unordered_map<std::string,int>& test_substrings) {
     std::unordered_map<std::string,int>::const_iterator got = test_substrings.find (to_find);
 
     if ( got == test_substrings.end() ) {
@@ -78,8 +78,8 @@ int main(int argc, char *argv[])  {
     std::string one_line;
     std::string sequence2;
 
-   //std::unordered_map<std::string,std::string> control_substrings;
-   //std::unordered_map<std::string,int> test_substrings;
+   std::unordered_map<std::string,std::string> control_substrings;
+   std::unordered_map<std::string,int> test_substrings;
 	
     parasail_result_t *best_result = NULL;
     parasail_matrix_t *matrix = NULL;
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])  {
         }
         //std::cout<<"Calculating "<<c<<"....\n";
         c++;
-        subString_control(non_rep_section, non_rep_section.length(), k, sequence2);
+        subString_control(non_rep_section, non_rep_section.length(), k, sequence2, control_substrings);
     }
     std::cout<<"Calculated "<<c<<" control sequence.....\n";
     //int max = 0, second_max = 0,
@@ -127,14 +127,14 @@ int main(int argc, char *argv[])  {
 	second_max = 0;
         std::string sequence(seq->seq.s);
         
-        subString_test(sequence,sequence.length(),k);
+        subString_test(sequence,sequence.length(),k, test_substrings);
 
         std::unordered_set<std::string> control_set;
 
         auto itr = control_substrings.begin();
 
         while (itr != control_substrings.end()) {                    
-            if(find_substring(itr->first) == true) {
+            if(find_substring(itr->first,test_substrings) == true) {
                 //std::cout<<"Found\n";
                 /*if(std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end()) {
                     control_set.push_back(itr->second);
