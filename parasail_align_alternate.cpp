@@ -22,7 +22,7 @@ KSEQ_INIT(gzFile, gzread)
 //std::unordered_map<std::string,std::string> control_substrings;
 //std::unordered_map<std::string,int> test_substrings;
 
-void subString_control(std::string& s, int n, int sub_length,std::string& probe_name, std::unordered_map<std::string,std::string>& control_substrings)  { 
+void subString_control(std::string& s, int n, int sub_length,std::string& probe_name, auto& control_substrings)  { 
     //std::unordered_map<std::string,int> temp_array;
     //#pragma omp parallel for
     for (int i = 0; i < n; i++)  
@@ -33,15 +33,15 @@ void subString_control(std::string& s, int n, int sub_length,std::string& probe_
     //control_substrings = temp_array;
 } 
 
-void subString_test(std::string& s, int n, int sub_length, std::unordered_map<std::string,int>& test_substrings)  {
+void subString_test(std::string& s, int n, int sub_length, auto& test_substrings)  {
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             test_substrings.insert({s.substr(i, sub_length), 1});
         }
 } 
 
-bool find_substring(std::string to_find, std::unordered_map<std::string,int>& test_substrings) {
-    std::unordered_map<std::string,int>::const_iterator got = test_substrings.find (to_find);
+bool find_substring(std::string to_find, auto& test_substrings) {
+    auto got = test_substrings.find (to_find);
 
     if ( got == test_substrings.end() ) {
         return false;
