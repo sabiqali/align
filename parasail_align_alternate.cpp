@@ -15,13 +15,14 @@
 #include <vector>
 #include <iomanip>
 #include <algorithm>
+#include <unordered_set>
 
 KSEQ_INIT(gzFile, gzread)
 
 std::unordered_map<std::string,std::string> control_substrings;
 std::unordered_map<std::string,int> test_substrings;
 
-void subString_control(std::string s, int n, int sub_length,std::string probe_name)  { 
+void subString_control(std::string& s, int n, int sub_length,std::string& probe_name)  { 
     //std::unordered_map<std::string,int> temp_array;
     //#pragma omp parallel for
     for (int i = 0; i < n; i++)  
@@ -32,7 +33,7 @@ void subString_control(std::string s, int n, int sub_length,std::string probe_na
     //control_substrings = temp_array;
 } 
 
-void subString_test(std::string s, int n, int sub_length)  {
+void subString_test(std::string& s, int n, int sub_length)  {
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             test_substrings.insert({s.substr(i, sub_length), 1});
@@ -76,6 +77,9 @@ int main(int argc, char *argv[])  {
 	
     std::string one_line;
     std::string sequence2;
+
+   //std::unordered_map<std::string,std::string> control_substrings;
+   //std::unordered_map<std::string,int> test_substrings;
 	
     parasail_result_t *best_result = NULL;
     parasail_matrix_t *matrix = NULL;
@@ -116,7 +120,7 @@ int main(int argc, char *argv[])  {
     }
     std::cout<<"Calculated "<<c<<" control sequence.....\n";
     //int max = 0, second_max = 0,
-    c = 1;
+    c = 0;
     while ((l = kseq_read(seq)) >= 0) {
         //std::cout<<seq->name.s<<std::endl<<seq->seq.s<<std::endl;
 	max = 0;
@@ -125,30 +129,32 @@ int main(int argc, char *argv[])  {
         
         subString_test(sequence,sequence.length(),k);
 
-        std::vector<std::string> control_set;
+        std::unordered_set<std::string> control_set;
 
-        std::unordered_map<std::string,std::string>::iterator itr = control_substrings.begin();
+        auto itr = control_substrings.begin();
 
         while (itr != control_substrings.end()) {                    
             if(find_substring(itr->first) == true) {
                 //std::cout<<"Found\n";
-                if(std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end()) {
+                /*if(std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end()) {
                     control_set.push_back(itr->second);
-                }
+                }*/
+		control_set.insert(itr->second);
             } else {
                     //std::cout<<"Not Found\n";
             }
             itr++;
         }
 
-        for(auto i = 0; i<control_set.size();i++) {
+        //for(auto i = 0; i<control_set.size();i++) {
+	for(const auto& elem: control_set){
             //std::cout<<control_set[i]<<std::endl;
             //call parasail here
-	    char seq_arr[control_set[i].length() + 1];
-            strcpy(seq_arr,control_set[i].c_str());
+	    char seq_arr[elem.length() + 1];
+            strcpy(seq_arr,elem.c_str());
 
-            parasail_result_t *result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),seq_arr,control_set[i].length(),5,4,matrix);
-            parasail_traceback_t *traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), seq_arr, control_set[i].length(),matrix,'|','*','*');
+            parasail_result_t *result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),seq_arr,elem.length(),5,4,matrix);
+            parasail_traceback_t *traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), seq_arr, elem.length(),matrix,'|','*','*');
             if(result->score > max) {
                 second_max = max;
                 max = result->score;
@@ -164,7 +170,7 @@ int main(int argc, char *argv[])  {
                 best_comp = traceback->comp;
                 best_query = traceback->query;
 		second_best_oligo = best_oligo;
-		best_oligo = control_set[i];
+		best_oligo = elem;
                 //std::cout<<traceback->ref<<std::endl;
             }
             //parasail_traceback_free(traceback);
