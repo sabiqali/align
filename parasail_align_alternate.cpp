@@ -22,8 +22,9 @@ KSEQ_INIT(gzFile, gzread)
 //std::unordered_map<std::string,std::string> control_substrings;
 //std::unordered_map<std::string,int> test_substrings;
 
-void subString_control(std::string& s, int n, int sub_length,std::string& probe_name, auto& control_substrings)  { 
+void subString_control(std::string& s, int sub_length,std::string& probe_name, auto& control_substrings)  { 
     //std::unordered_map<std::string,int> temp_array;
+    int n = s.length();
     //#pragma omp parallel for
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
@@ -33,7 +34,8 @@ void subString_control(std::string& s, int n, int sub_length,std::string& probe_
     //control_substrings = temp_array;
 } 
 
-void subString_test(std::string& s, int n, int sub_length, auto& test_substrings)  {
+void subString_test(std::string& s, int sub_length, auto& test_substrings)  {
+    int n = s.length();
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             test_substrings.insert({s.substr(i, sub_length), 1});
@@ -116,7 +118,7 @@ int main(int argc, char *argv[])  {
         }
         //std::cout<<"Calculating "<<c<<"....\n";
         c++;
-        subString_control(non_rep_section, non_rep_section.length(), k, sequence2, control_substrings);
+        subString_control(non_rep_section, k, sequence2, control_substrings);
     }
     std::cout<<"Calculated "<<c<<" control sequence.....\n";
     //int max = 0, second_max = 0,
@@ -127,7 +129,7 @@ int main(int argc, char *argv[])  {
 	second_max = 0;
         std::string sequence(seq->seq.s);
         
-        subString_test(sequence,sequence.length(),k, test_substrings);
+        subString_test(sequence, k, test_substrings);
 
         std::unordered_set<std::string> control_set;
 
