@@ -96,6 +96,8 @@ int main(int argc, char *argv[])  {
     //FILE *out_file;
     //out_file = fopen("traceback_output.txt", "w");
 
+    int read_aligns;
+
     std::ofstream output_file(argv[3]);
 
     output_file<<std::left<<std::setw(55)<<"sequence_name"<<std::setw(35)<<"best_oligo_name"<<std::setw(35)<<"best_score"<<std::setw(35)<<"second_best_oligo_name"<<std::setw(35)<<"second_best_score"<<std::endl;
@@ -147,7 +149,7 @@ int main(int argc, char *argv[])  {
             }
             itr++;
         }
-
+	read_aligns = 0;
         //for(auto i = 0; i<control_set.size();i++) {
 	for(const auto& elem: control_set){
             //std::cout<<control_set[i]<<std::endl;
@@ -175,6 +177,7 @@ int main(int argc, char *argv[])  {
 		best_oligo = elem;
                 //std::cout<<traceback->ref<<std::endl;
             }
+	    read_aligns++;
             //parasail_traceback_free(traceback);
             parasail_result_free(result);
         }
@@ -185,6 +188,7 @@ int main(int argc, char *argv[])  {
         c++;
 
 	std::cout<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
+	std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
         std::cout<<"\nHighest Score: "<<max<<"\nControl Oligo: "<<best_oligo<<"\n\n";
         std::cout<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
         std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nControl Oligo: "<<second_best_oligo<<"\n\n";
