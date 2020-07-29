@@ -65,6 +65,54 @@ std::string removeDupWord(std::string str)  {
    return word;
 }
 
+void printAlignment(const char* query, const char* target,
+                    const unsigned char* alignment, const int alignmentLength,
+                    const int position, const EdlibAlignMode modeCode) {
+    int tIdx = -1;
+    int qIdx = -1;
+    if (modeCode == EDLIB_MODE_HW) {
+        tIdx = position;
+        for (int i = 0; i < alignmentLength; i++) {
+            if (alignment[i] != EDLIB_EDOP_INSERT)
+                tIdx--;
+        }
+    }
+    for (int start = 0; start < alignmentLength; start += 50) {
+        // target
+        printf("T: ");
+        int startTIdx = -1;
+        for (int j = start; j < start + 50 && j < alignmentLength; j++) {
+            if (alignment[j] == EDLIB_EDOP_INSERT)
+                printf("-");
+            else
+                printf("%c", target[++tIdx]);
+            if (j == start)
+                startTIdx = tIdx;
+        }
+        printf(" (%d - %d)\n", std::max(startTIdx, 0), tIdx);
+
+        // match / mismatch
+        printf("   ");
+        for (int j = start; j < start + 50 && j < alignmentLength; j++) {
+            printf(alignment[j] == EDLIB_EDOP_MATCH ? "|" : " ");
+        }
+        printf("\n");
+
+        // query
+        printf("Q: ");
+        int startQIdx = qIdx;
+        for (int j = start; j < start + 50 && j < alignmentLength; j++) {
+            if (alignment[j] == EDLIB_EDOP_DELETE)
+                printf("-");
+            else
+                printf("%c", query[++qIdx]);
+            if (j == start)
+                startQIdx = qIdx;
+        }
+        printf(" (%d - %d)\n\n", std::max(startQIdx, 0), qIdx);
+    }
+}
+
 int main(int argc, char *argv[])  {
     gzFile fp;
     kseq_t *seq;
@@ -121,6 +169,10 @@ int main(int argc, char *argv[])  {
     }
     std::cout<<"Calculated "<<c<<" control sequence.....\n";
     
+    unsigned char * best_alignment;
+    int best_alignmentLength;
+    int* best_endLocations;
+
     std::cout<<std::left<<std::setw(55)<<"Sequence Name"<<std::setw(35)<<"Oligo Name"<<std::setw(35)<<"Reads Aligned"<<std::setw(35)<<"Score"<<std::endl;
 
     c = 0;
@@ -156,6 +208,7 @@ int main(int argc, char *argv[])  {
             probe_name = temp.substr(0,temp.find('A')); 
 	   
 	    EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+	    
 	    if(result.editDistance > max) {
 			second_max = max;
 			max = result.editDistance;
@@ -171,15 +224,19 @@ int main(int argc, char *argv[])  {
 			//best_comp = traceback->comp;
 			//best_query = traceback->query;
 			second_best_oligo = best_oligo;
-			best_oligo = elem;
+			best_oligo = sequence2;
+			best_alignment = result.alignment;
+            		best_alignmentLength = result.alignmentLength;
+            		best_endLocations = result.endLocations;
 			//std::cout<<traceback->ref<<std::endl;
-        }
+            }
 	    //auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
 
 	    //auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>( t3 - t2 ).count();
 	
 	    //std::cout<<"Result Time: "<<duration1<<"\nTraceback Time: "<<duration2<<std::endl;
 	    read_aligns++;
+	    edlibFreeAlignResult(result);
 		//parasail_traceback_free(traceback);
 		//parasail_result_free(result);
 	}
@@ -195,7 +252,7 @@ int main(int argc, char *argv[])  {
         //std::cout<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
         //std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nControl Oligo: "<<second_best_oligo<<"\n\n";
         //std::cout<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";
-
+	//printAlignment(seq->seq.s, best_oligo.c_str(), best_alignment, best_alignmentLength, *(best_endLocations), EDLIB_MODE_NW);
         std::cout<<std::left<<std::setw(55)<<seq->name.s<<std::setw(35)<<best_probe_name<<std::setw(35)<<read_aligns<<std::setw(35)<<max<<std::endl;
 	
 	/*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
