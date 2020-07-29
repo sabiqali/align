@@ -197,6 +197,7 @@ int main(int argc, char *argv[])  {
         output_file<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
         output_file<<"\n\nSecond Highest Score:"<<second_max<<"\nProbe name:"<<second_best_probe_no<<std::endl;
         output_file<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";*/
+	test_substrings.erase(test_substrings.begin(),test_substrings.end());
     }
 
     parasail_matrix_free(matrix);
