@@ -22,20 +22,20 @@ KSEQ_INIT(gzFile, gzread)
 //std::unordered_map<std::string,int> test_substrings;
 
 inline void subString_control(const std::string& s, int sub_length,const std::string& probe_name, auto& control_substrings)  { 
-    //std::unordered_map<std::string,int> temp_array;
+    
     int n = s.length();
-    //#pragma omp parallel for
+    
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             control_substrings.insert({s.substr(i, sub_length), probe_name});
         }
 	
-    //control_substrings = temp_array;
+   
 } 
 
 inline void subString_test(const std::string& s, int sub_length, auto& test_substrings)  {
     int n = s.length();
-    //#pragma omp parallel for
+    
     for (int i = 0; i < n; i++)  
         if(i+sub_length < n) {
             test_substrings.insert({s.substr(i, sub_length), 1});
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])  {
                 /*if(std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end()) {
                     control_set.push_back(itr->second);
                 }*/
-				control_set.insert(itr->second);
+		control_set.insert(itr->second);
             } 
             itr++;
         }
