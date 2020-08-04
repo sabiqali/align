@@ -351,7 +351,7 @@ int main(int argc, char *argv[])  {
         read_count++;
 
         if(opt::print_alignment) {
-            std::cout<<"\n\n\nSequence "<<num_alignments<<" : "<<seq->seq.s;
+            std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
             std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
             std::cout<<"\nHighest Score: "<<max<<"\nControl Oligo: "<<best_oligo<<"\n\n";
             if(opt::parasail)
