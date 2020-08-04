@@ -9,7 +9,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <unordered_map>
-//#include "edlib.h"
+#include "edlib.h"
 #include <vector>
 #include <iomanip>
 #include <algorithm>
@@ -41,7 +41,7 @@ static const char *ALIGN_MESSAGE =
 
 namespace opt
 {
-    static unsigned int print_alignment;
+    static unsigned int print_alignment = 0;
     static std::string reads_file;
     static std::string control_file;
     static std::string output_file;
@@ -77,7 +77,7 @@ void parse_align_options(int argc, char** argv)
     for (char c; (c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1;) {
         std::istringstream arg(optarg != NULL ? optarg : "");
         switch (c) {
-            case 'p': arg >> opt::print_alignment; break;
+            case 'p': opt::print_alignment = 1; break;
             case 'r': arg >> opt::reads_file; break;
             case 'c': arg >> opt::control_file; break;
             case 'f': arg >> opt::output_file; break;
@@ -276,11 +276,12 @@ int main(int argc, char *argv[])  {
     }
 
     std::cerr << "Read " << control_count << " control sequences\n";
-    std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore" << std::endl;
+    if(!opt::print_alignment)
+        std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore" << std::endl;
 
-    unsigned char * best_alignment, second_best_alignment;
+    unsigned char  *best_alignment, *second_best_alignment;
     int best_alignmentLength, second_best_alignmentLength;
-    int* best_endLocations, second_best_endLocations;
+    int *best_endLocations, *second_best_endLocations;
 
     int read_count = 0;
     while ((l = kseq_read(seq)) >= 0) {
@@ -350,7 +351,7 @@ int main(int argc, char *argv[])  {
         read_count++;
 
         if(opt::print_alignment) {
-            std::cout<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
+            std::cout<<"\n\n\nSequence "<<num_alignments<<" : "<<seq->seq.s;
             std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
             std::cout<<"\nHighest Score: "<<max<<"\nControl Oligo: "<<best_oligo<<"\n\n";
             if(opt::parasail)
