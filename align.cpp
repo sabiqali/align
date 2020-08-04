@@ -361,8 +361,8 @@ int main(int argc, char *argv[])  {
             std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nControl Oligo: "<<second_best_oligo<<"\n\n";
             if(opt::parasail)
                 std::cout<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";
-            if(opt::edlib)
-                printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
+            //if(opt::edlib)
+                //printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
         }
         else
             std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << std::endl;	
