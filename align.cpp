@@ -205,7 +205,7 @@ std::string dna_reverse_complement(std::string seq) {
 int percentage_identity(std::string comp) {
     std::size_t matches = std::count(comp.begin(),comp.end(),'|');
 
-    return ((matches*100)/comp.length())
+    return ((matches*100)/comp.length());
 }
 
 void printAlignment(const char* query, const char* target,
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])  {
                     best_query = traceback->query;
                     second_best_oligo = best_oligo;
                     best_oligo = itr_elem;
-                    orientation = '+'
+                    orientation = '+';
                 }
                 parasail_traceback_free(traceback);
                 parasail_result_free(result);
