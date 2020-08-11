@@ -17,6 +17,7 @@
 #include <chrono>
 #include <sstream>
 #include <getopt.h>
+#include <omp.h>
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -39,8 +40,7 @@ static const char *ALIGN_MESSAGE =
 "      --parasail                       watch the sequencing run directory DIR and call methylation as data is generated\n"
 "      --edlib                          in watch mode, write the alignments for each fastq\n\n";
 
-namespace opt
-{
+namespace opt {
     static unsigned int print_alignment = 0;
     static std::string reads_file;
     static std::string control_file;
@@ -71,8 +71,7 @@ static const struct option longopts[] = {
     { NULL, 0, NULL, 0 }
 };
 
-void parse_align_options(int argc, char** argv)
-{
+void parse_align_options(int argc, char** argv) {
     bool die = false;
     for (char c; (c = getopt_long(argc, argv, shortopts, longopts, NULL)) != -1;) {
         std::istringstream arg(optarg != NULL ? optarg : "");
@@ -120,10 +119,10 @@ void parse_align_options(int argc, char** argv)
         die = true;
     }
 
-    if(opt::output_file.empty()) {
+    /*if(opt::output_file.empty()) {
         std::cerr << "Align: a --output file must be provided\n";
         die = true;
-    }
+    }*/
 
     if(opt::parasail == 0 && opt::edlib == 0) {
         std::cerr << "Align: processing option must be selected. Please selected either --parasail or --edlib\n";
@@ -140,8 +139,9 @@ void parse_align_options(int argc, char** argv)
 inline void subString_control(const std::string& s, int sub_length,const std::string& probe_name, auto& control_substrings)  { 
     
     int n = s.length();
-    
-    for (int i = 0; i < n; i++)  
+    //#pragma omp parallel for
+    for (int i = 0; i < n; i++)
+	//#pragma omp critical  
         if(i+sub_length < n) {
             control_substrings.insert({s.substr(i, sub_length), probe_name});
         }
@@ -292,28 +292,32 @@ int main(int argc, char *argv[])  {
         subString_test(sequence, k, test_substrings);
 
         // Find the set of control oligos that share a k-mer with the read
-        std::unordered_set<std::string> control_set;
+        std::vector<std::string> control_set;
         for(auto itr = control_substrings.begin(); itr != control_substrings.end(); ++itr) {
             if( find_substring(itr->first,test_substrings) ) {
-		        control_set.insert(itr->second);
+                if (std::find(control_set.begin(), control_set.end(), itr->second) == control_set.end())
+		            control_set.push_back(itr->second);
             } 
         }
 
 	    int num_alignments = 0;
-	
-    	for(const auto& elem: control_set) {
-            
-            std::string sequence2 = elem.substr(elem.find('A')); //used to separate the sequence from the probe no and name
-            std::string temp = elem.substr(elem.find('F')); //used to extract the probe name
-            probe_name = temp.substr(0,temp.find('A'));
+	    int vector_size = control_set.size();
+	    //#pragma omp parallel for
+    	//for(const auto& elem: control_set) {
+        #pragma omp parallel for
+        for(auto i = 0; i<vector_size ; i++) {
+            std::string itr_elem = control_set[i];    
+            std::string sequence2 = itr_elem.substr(itr_elem.find('A')); //used to separate the sequence from the probe no and name
+            std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
+            std::string probe_name_new = temp.substr(0,temp.find('A'));
             if(opt::parasail) {
                 parasail_result_t* result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
                 parasail_traceback_t* traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
-
+		        #pragma omp critical
                 if(result->score > max) {
                     second_max = max;
                     max = result->score;
-                    best_probe_name = probe_name;
+                    best_probe_name = probe_name_new;
                     second_best_query = best_query;
                     second_best_ref = best_ref;
                     second_best_comp = best_comp;
@@ -321,18 +325,18 @@ int main(int argc, char *argv[])  {
                     best_comp = traceback->comp;
                     best_query = traceback->query;
                     second_best_oligo = best_oligo;
-                    best_oligo = elem;
+                    best_oligo = itr_elem;
                 }
                 parasail_traceback_free(traceback);
                 parasail_result_free(result);
             }
             if(opt::edlib) {
                 EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-	    
+	    	    #pragma omp critical
                 if(result.editDistance > max) {
                     second_max = max;
                     max = result.editDistance;
-                    best_probe_name = probe_name;
+                    best_probe_name = probe_name_new;
                     second_best_oligo = best_oligo;
                     best_oligo = sequence2;
                     second_best_alignment = best_alignment;
