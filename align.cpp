@@ -181,6 +181,33 @@ std::string removeDupWord(std::string str)  {
    return word;
 }
 
+std::string dna_reverse_complement(std::string seq) {
+    reverse(seq.begin(),seq.end());
+    for (std::size_t i = 0; i < seq.length(); ++i){
+        switch (seq[i]){
+        case 'A':
+            seq[i] = 'T';
+            break;
+        case 'C':
+            seq[i] = 'G';
+            break;
+        case 'G':
+            seq[i] = 'C';
+            break;
+        case 'T':
+            seq[i] = 'A';
+            break;
+        }
+    }
+    return seq;
+}
+
+int percentage_identity(std::string comp) {
+    std::size_t matches = std::count(comp.begin(),comp.end(),'|');
+
+    return ((matches*100)/comp.length())
+}
+
 void printAlignment(const char* query, const char* target,
                     const unsigned char* alignment, const int alignmentLength,
                     const int position, const EdlibAlignMode modeCode) {
@@ -277,11 +304,13 @@ int main(int argc, char *argv[])  {
 
     std::cerr << "Read " << control_count << " control sequences\n";
     if(!opt::print_alignment)
-        std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore" << std::endl;
+        std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
     unsigned char  *best_alignment, *second_best_alignment;
     int best_alignmentLength, second_best_alignmentLength;
     int *best_endLocations, *second_best_endLocations;
+
+    char orientation;
 
     int read_count = 0;
     while ((l = kseq_read(seq)) >= 0) {
@@ -326,6 +355,7 @@ int main(int argc, char *argv[])  {
                     best_query = traceback->query;
                     second_best_oligo = best_oligo;
                     best_oligo = itr_elem;
+                    orientation = '+'
                 }
                 parasail_traceback_free(traceback);
                 parasail_result_free(result);
@@ -369,7 +399,7 @@ int main(int argc, char *argv[])  {
                 //printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
         }
         else
-            std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << std::endl;	
+            std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << "\t" << percentage_identity(best_comp) << "\t" << orientation << std::endl;	
 
 	    /*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
         output_file<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no;
