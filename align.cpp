@@ -339,26 +339,50 @@ int main(int argc, char *argv[])  {
             std::string sequence2 = itr_elem.substr(itr_elem.find('A')); //used to separate the sequence from the probe no and name
             std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
             std::string probe_name_new = temp.substr(0,temp.find('A'));
+            std::string reverse = dna_reverse_complement(sequence);
             if(opt::parasail) {
                 parasail_result_t* result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
                 parasail_traceback_t* traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
-		        #pragma omp critical
-                if(result->score > max) {
-                    second_max = max;
-                    max = result->score;
-                    best_probe_name = probe_name_new;
-                    second_best_query = best_query;
-                    second_best_ref = best_ref;
-                    second_best_comp = best_comp;
-                    best_ref = traceback ->ref;
-                    best_comp = traceback->comp;
-                    best_query = traceback->query;
-                    second_best_oligo = best_oligo;
-                    best_oligo = itr_elem;
-                    orientation = '+';
+                parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
+                parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
+                if(result->score > result_reverse->score) {
+                    #pragma omp critical
+                    if(result->score > max) {
+                        second_max = max;
+                        max = result->score;
+                        best_probe_name = probe_name_new;
+                        second_best_query = best_query;
+                        second_best_ref = best_ref;
+                        second_best_comp = best_comp;
+                        best_ref = traceback ->ref;
+                        best_comp = traceback->comp;
+                        best_query = traceback->query;
+                        second_best_oligo = best_oligo;
+                        best_oligo = itr_elem;
+                        orientation = '+';
+                    }
+                }
+                else {
+                    #pragma omp critical
+                    if(result_reverse->score > max) {
+                        second_max = max;
+                        max = result_reverse->score;
+                        best_probe_name = probe_name_new;
+                        second_best_query = best_query;
+                        second_best_ref = best_ref;
+                        second_best_comp = best_comp;
+                        best_ref = traceback_reverse ->ref;
+                        best_comp = traceback_reverse->comp;
+                        best_query = traceback_reverse->query;
+                        second_best_oligo = best_oligo;
+                        best_oligo = itr_elem;
+                        orientation = '-';
+                    }
                 }
                 parasail_traceback_free(traceback);
                 parasail_result_free(result);
+                parasail_traceback_free(traceback_reverse);
+                parasail_result_free(result_reverse);
             }
             if(opt::edlib) {
                 EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
