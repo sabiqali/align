@@ -407,13 +407,26 @@ int main(int argc, char *argv[])  {
         }   
         
         read_count++;
+	std::string percentage_identity_comp;
+	int ind1 = best_comp.find('*');
+                int ind2 = best_comp.find('|');
+                int ind3 = best_comp.find_last_of('*');
+                int ind4 = best_comp.find_last_of('|');
+                percentage_identity_comp = best_comp.substr( ind1<ind2?ind1:ind2 , ind3>ind4?ind3:ind4);
 
         if(opt::print_alignment) {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
             std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
             std::cout<<"\nHighest Score: "<<max<<"\nControl Oligo: "<<best_oligo<<"\n\n";
-            if(opt::parasail)
+            if(opt::parasail) {
                 std::cout<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
+		/*int ind1 = best_comp.find('*');
+		int ind2 = best_comp.find('|');
+		int ind3 = best_comp.find_last_of('*');
+		int ind4 = best_comp.find_last_of('|');
+	    	percentage_identity_comp = best_comp.substr( ind1<ind2?ind1:ind2 , ind3>ind4?ind3:ind4);
+		std::cout<<std::endl<<temp<<std::endl;*/
+	    }
             if(opt::edlib)
                 printAlignment(seq->seq.s, best_oligo.c_str(), best_alignment, best_alignmentLength, *(best_endLocations), EDLIB_MODE_NW);
             std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nControl Oligo: "<<second_best_oligo<<"\n\n";
@@ -423,7 +436,7 @@ int main(int argc, char *argv[])  {
                 //printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
         }
         else
-            std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << "\t" << percentage_identity(best_comp) << "\t" << orientation << std::endl;	
+            std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << "\t" << percentage_identity(percentage_identity_comp) << "\t" << orientation << std::endl;	
 
 	    /*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
         output_file<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no;
