@@ -315,7 +315,8 @@ int main(int argc, char *argv[])  {
     if(!opt::print_alignment)
         std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
-    unsigned char  *best_alignment, *second_best_alignment, *best_cigar;
+    unsigned char  *best_alignment, *second_best_alignment; 
+    char *best_cigar;
     int best_alignmentLength, second_best_alignmentLength;
     int *best_endLocations, *second_best_endLocations;
 
