@@ -461,6 +461,8 @@ int main(int argc, char *argv[])  {
 
     parasail_matrix_free(matrix);
     //fclose(out_file);
+    if(opt::sam_out)
+        sam_out_fd.close();
     control_fd.close();
     //fclose(control_fd);
     kseq_destroy(seq);
