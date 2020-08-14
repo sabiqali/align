@@ -37,8 +37,8 @@ static const char *ALIGN_MESSAGE =
 "      --table_out                      the output to file will be in a tabular format including only the score and names of the read and the control\n"
 "      --align_out                      the output to file will be in an alignment format which will include the read, control oligo and the SAM cigar\n"
 "  -t, --threads=NUM                    use NUM threads (default: 1)\n"
-"      --parasail                       watch the sequencing run directory DIR and call methylation as data is generated\n"
-"      --edlib                          in watch mode, write the alignments for each fastq\n\n";
+"      --parasail                       use the parasail library to generate the alignment sequence\n"
+"      --edlib                          use the edlib library to produce the alignment sequence\n\n";
 
 namespace opt {
     static unsigned int print_alignment = 0;
