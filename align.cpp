@@ -36,6 +36,7 @@ static const char *ALIGN_MESSAGE =
 "  -f, --output_file=FILE               the file to which the score will be output to\n"
 "      --table_out                      the output to file will be in a tabular format including only the score and names of the read and the control\n"
 "      --align_out                      the output to file will be in an alignment format which will include the read, control oligo and the SAM cigar\n"
+"      --SAM_out                        the output to file will be a SAM file\n"
 "  -t, --threads=NUM                    use NUM threads (default: 1)\n"
 "      --parasail                       use the parasail library to generate the alignment sequence\n"
 "      --edlib                          use the edlib library to produce the alignment sequence\n\n";
@@ -50,11 +51,12 @@ namespace opt {
     static int parasail = 0;
     static int edlib = 0;
     static int num_threads = 1;
+    static int sam_out = 0;
 }
 
 static const char* shortopts = "r:c:f:t:p";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB, OPT_SAM_OUT };
 
 static const struct option longopts[] = {
     { "print_alignment",      no_argument,       NULL, 'p' },
@@ -64,6 +66,7 @@ static const struct option longopts[] = {
     { "threads",              required_argument, NULL, 't' },
     { "table_out",            no_argument,       NULL, OPT_TABLE_OUT },
     { "align_out",            no_argument,       NULL, OPT_ALIGN_OUT },
+    { "sam_out",              no_argument,       NULL, OPT_SAM_OUT },
     { "parasail",             no_argument,       NULL, OPT_PARASAIL },
     { "edlib",                no_argument,       NULL, OPT_EDLIB },
     { "help",                 no_argument,       NULL, OPT_HELP },
@@ -84,6 +87,7 @@ void parse_align_options(int argc, char** argv) {
             case 't': arg >> opt::num_threads; break;
             case OPT_TABLE_OUT: opt::table_out = 1; break;
             case OPT_ALIGN_OUT: opt::align_out = 1; break;
+            case OPT_SAM_OUT: opt::sam_out = 1; break;
             case OPT_PARASAIL: opt::parasail = 1; break;
             case OPT_EDLIB: opt::edlib = 1; break;
             case OPT_HELP:
@@ -260,12 +264,17 @@ int main(int argc, char *argv[])  {
     gzFile fp;
     kseq_t *seq;
     int l;
+    std::ofstream sam_out_fd;
 
     parse_align_options(argc , argv);
 
     fp = gzopen(opt::reads_file.c_str(), "r");
     seq = kseq_init(fp);
     std::ifstream control_fd(opt::control_file);
+
+    if(opt::sam_out) {
+        sam_out_fd.open(opt::output_file);
+    }
 	
     std::unordered_map<std::string,std::string> control_substrings;
 	
@@ -306,7 +315,7 @@ int main(int argc, char *argv[])  {
     if(!opt::print_alignment)
         std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
-    unsigned char  *best_alignment, *second_best_alignment;
+    unsigned char  *best_alignment, *second_best_alignment, *best_cigar;
     int best_alignmentLength, second_best_alignmentLength;
     int *best_endLocations, *second_best_endLocations;
 
@@ -345,6 +354,8 @@ int main(int argc, char *argv[])  {
                 parasail_traceback_t* traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
                 parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
                 parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
+                parasail_cigar_t* cigar = result->score > result_reverse->score ? parasail_result_get_cigar(result, seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), matrix) : parasail_result_get_cigar(result_reverse, reverse.c_str(), reverse.length(), sequence2.c_str(), sequence2.length(), matrix);
+                char* cigar_decoded = parasail_cigar_decode(cigar);
                 if(result->score > result_reverse->score) {
                     #pragma omp critical
                     if(result->score > max) {
@@ -360,6 +371,7 @@ int main(int argc, char *argv[])  {
                         second_best_oligo = best_oligo;
                         best_oligo = itr_elem;
                         orientation = '+';
+                        best_cigar = cigar_decoded;
                     }
                 }
                 else {
@@ -377,6 +389,7 @@ int main(int argc, char *argv[])  {
                         second_best_oligo = best_oligo;
                         best_oligo = itr_elem;
                         orientation = '-';
+                        best_cigar = cigar_decoded;
                     }
                 }
                 parasail_traceback_free(traceback);
@@ -413,6 +426,10 @@ int main(int argc, char *argv[])  {
         int ind3 = best_comp.find_last_of('*');
         int ind4 = best_comp.find_last_of('|');
         percentage_identity_comp = best_comp.substr( ind1<ind2?ind1:ind2 , ind3>ind4?ind3:ind4);
+
+        if(opt::sam_out && opt::parasail) {
+            sam_out_fd << seq->name.s << "\t" << (orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best_cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
+        }
 
         if(opt::print_alignment) {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
