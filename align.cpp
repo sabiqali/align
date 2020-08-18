@@ -299,10 +299,10 @@ int main(int argc, char *argv[])  {
     while(control_fd) {
         getline(control_fd,one_line);
         
-	    std::string non_rep_section;
+	std::string non_rep_section;
         if(one_line.length() > 75) {
             std::string sequence2 = one_line.substr(one_line.find('A')); //used to separate the sequence from the probe no and name
-	        non_rep_section = sequence2.substr(61,68);   //indexed used to extract the non repeating sequence from the sequence obtained above
+	    non_rep_section = sequence2.substr(61,68);   //indexed used to extract the non repeating sequence from the sequence obtained above
             std::string temp = one_line.substr(one_line.find('F')); //used to extract the probe name
             probe_name = temp.substr(0,temp.find('A'));
         }
@@ -324,8 +324,8 @@ int main(int argc, char *argv[])  {
 
     int read_count = 0;
     while ((l = kseq_read(seq)) >= 0) {
-	    max = 0;
-	    second_max = 0;
+	max = 0;
+	second_max = 0;
         std::string sequence(seq->seq.s);
         std::unordered_map<std::string,int> test_substrings;
         subString_test(sequence, k, test_substrings);
@@ -339,9 +339,9 @@ int main(int argc, char *argv[])  {
             } 
         }
 
-	    int num_alignments = 0;
-	    int vector_size = control_set.size();
-	    //#pragma omp parallel for
+	int num_alignments = 0;
+	int vector_size = control_set.size();
+	//#pragma omp parallel for
     	//for(const auto& elem: control_set) {
         #pragma omp parallel for
         for(auto i = 0; i<vector_size ; i++) {
@@ -400,7 +400,7 @@ int main(int argc, char *argv[])  {
             }
             if(opt::edlib) {
                 EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-	    	    #pragma omp critical
+	    	#pragma omp critical
                 if(result.editDistance > max) {
                     second_max = max;
                     max = result.editDistance;
@@ -417,7 +417,7 @@ int main(int argc, char *argv[])  {
                 edlibFreeAlignResult(result);
             }
     	    
-	        num_alignments++;
+	    num_alignments++;
         }   
         
         read_count++;
@@ -453,7 +453,7 @@ int main(int argc, char *argv[])  {
             if(opt::edlib)
                 std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << std::endl;
         }
-	    /*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
+	/*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
         output_file<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no;
         output_file<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
         output_file<<"\n\nSecond Highest Score:"<<second_max<<"\nProbe name:"<<second_best_probe_no<<std::endl;
