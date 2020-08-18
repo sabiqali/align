@@ -426,7 +426,8 @@ int main(int argc, char *argv[])  {
         int ind2 = best_comp.find('|');
         int ind3 = best_comp.find_last_of('*');
         int ind4 = best_comp.find_last_of('|');
-        percentage_identity_comp = best_comp.substr( ind1<ind2?ind1:ind2 , ind3>ind4?ind3:ind4);
+        int first_char = ind1<ind2?ind1:ind2;
+        percentage_identity_comp = best_comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
 
         if(opt::sam_out && opt::parasail) {
             sam_out_fd << seq->name.s << "\t" << (orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best_cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
