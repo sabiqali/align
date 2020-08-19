@@ -64,7 +64,7 @@ struct AlignmentResult {
     char orientation;
     char* cigar;
     unsigned char* alignment;
-    int endLocation;
+    int* endLocation;
     int alignmentLength;
 };
 
@@ -274,7 +274,7 @@ void printAlignment(const char* query, const char* target,
     }
 }
 
-AlignmentResult* align_parasail(std::string reads, std::string control, parasail_matrix_t *matrix) {
+inline AlignmentResult* align_parasail(std::string reads, std::string control, parasail_matrix_t *matrix) {
     AlignmentResult *complete_result;
     std::string reverse = dna_reverse_complement(reads);
     parasail_result_t* result = parasail_sg_trace_scan_16(reads.c_str(),reads.length(),control.c_str(),control.length(),5,4,matrix);
@@ -283,6 +283,7 @@ AlignmentResult* align_parasail(std::string reads, std::string control, parasail
     parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), control.c_str(), control.length(),matrix,'|','*','*');
     parasail_cigar_t* cigar = result->score > result_reverse->score ? parasail_result_get_cigar(result, reads.c_str(), reads.length(), control.c_str(), control.length(), matrix) : parasail_result_get_cigar(result_reverse, reverse.c_str(), reverse.length(), control.c_str(), control.length(), matrix);
     char* cigar_decoded = parasail_cigar_decode(cigar);
+    #pragma omp critical
     if(result->score > result_reverse->score) {
         complete_result->score = result->score;
         complete_result->ref = traceback ->ref;
@@ -307,10 +308,10 @@ AlignmentResult* align_parasail(std::string reads, std::string control, parasail
     return complete_result;
 }
 
-AlignmentResult* align_edlib(std::string reads, std::string control) {
+inline AlignmentResult* align_edlib(std::string reads, std::string control) {
     AlignmentResult *complete_result;
 
-    EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+    EdlibAlignResult result = edlibAlign(reads.c_str(), reads.length(), control.c_str(), control.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
     
     complete_result->score = result.editDistance;
     complete_result->alignment = result.alignment;
@@ -322,7 +323,7 @@ AlignmentResult* align_edlib(std::string reads, std::string control) {
     return complete_result;
 }
 
-AlignmentResult* align(std::string reads, std::string control, parasail_matrix_t *matrix) {
+inline AlignmentResult* align(std::string reads, std::string control, parasail_matrix_t *matrix) {
     if(opt::parasail) 
         return align_parasail(reads, control, matrix);
     if(opt::edlib)
@@ -411,6 +412,8 @@ int main(int argc, char *argv[])  {
             std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
             std::string probe_name_new = temp.substr(0,temp.find('A'));
             AlignmentResult *result = align(sequence,sequence2,matrix);
+	    //result->oligo = itr_elem;
+	    //result->probe_name = probe_name_new;
             #pragma omp critical
             if(result->score > best->score) {
                 result->oligo = itr_elem;
@@ -442,7 +445,7 @@ int main(int argc, char *argv[])  {
             if(opt::parasail) 
                 std::cout<<best->query<<"\n"<<best->comp<<"\n"<<best->ref;
             if(opt::edlib)
-                printAlignment(seq->seq.s, best->oligo.c_str(), best->alignment, best->alignmentLength, *(best->endLocations), EDLIB_MODE_NW);
+                printAlignment(seq->seq.s, best->oligo.c_str(), best->alignment, best->alignmentLength, *(best->endLocation), EDLIB_MODE_NW);
             std::cout<<"\n\nSecond Highest Score:"<<second_best->score<<"\nControl Oligo: "<<second_best->oligo<<"\n\n";
             if(opt::parasail)
                 std::cout<<second_best->query<<"\n"<<second_best->comp<<"\n"<<second_best->ref<<"\n\n";
