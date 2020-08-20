@@ -409,6 +409,8 @@ int main(int argc, char *argv[])  {
             } 
         }
 
+	best.score = 0;
+
 	int num_alignments = 0;
 	int vector_size = control_set.size();
 	//#pragma omp parallel for
