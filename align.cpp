@@ -420,12 +420,12 @@ int main(int argc, char *argv[])  {
             std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
             std::string probe_name_new = temp.substr(0,temp.find('A'));
             AlignmentResult result = align(sequence,sequence2,matrix);
-	    //result->oligo = itr_elem;
-	    //result->probe_name = probe_name_new;
+	    result.oligo = itr_elem;
+	    result.probe_name = probe_name_new;
             #pragma omp critical
             if(result.score > best.score) {
-                result.oligo = itr_elem;
-                result.probe_name = probe_name_new;
+                //result.oligo = itr_elem;
+                //result.probe_name = probe_name_new;
                 second_best = best;
                 best = result;
             }
