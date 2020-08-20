@@ -276,29 +276,25 @@ void printAlignment(const char* query, const char* target,
 
 inline AlignmentResult align_parasail(std::string reads, std::string control, parasail_matrix_t *matrix) {
     AlignmentResult complete_result;
-    //std::cout<<"testing4\n";
     std::string reverse = dna_reverse_complement(reads);
-    //std::string reverse = reads;
+    
     parasail_result_t* result = parasail_sg_trace_scan_16(reads.c_str(),reads.length(),control.c_str(),control.length(),5,4,matrix);
     parasail_traceback_t* traceback = parasail_result_get_traceback(result,reads.c_str(), reads.length(), control.c_str(), control.length(),matrix,'|','*','*');
     parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(), control.c_str(), control.length(),5,4,matrix);
     parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), control.c_str(), control.length(),matrix,'|','*','*');
     parasail_cigar_t* cigar = result->score > result_reverse->score ? parasail_result_get_cigar(result, reads.c_str(), reads.length(), control.c_str(), control.length(), matrix) : parasail_result_get_cigar(result_reverse, reverse.c_str(), reverse.length(), control.c_str(), control.length(), matrix);
     char* cigar_decoded = parasail_cigar_decode(cigar);
-    //std::cout<<"testing2\n";
-    //#pragma omp critical
+    
     if(result->score > result_reverse->score) {
-	//std::cout<<"testing5\n";
+	
         complete_result.score = result->score;
         complete_result.ref = traceback ->ref;
         complete_result.comp = traceback->comp;
         complete_result.query = traceback->query;
         complete_result.orientation = '+';
         complete_result.cigar = cigar_decoded;
-	//std::cout<<"testing7\n";
     }
     else {
-	//std::cout<<"testing6\n";
         complete_result.score = result_reverse->score;
         complete_result.ref = traceback_reverse ->ref;
         complete_result.comp = traceback_reverse->comp;
@@ -310,7 +306,7 @@ inline AlignmentResult align_parasail(std::string reads, std::string control, pa
     parasail_result_free(result);
     parasail_traceback_free(traceback_reverse);
     parasail_result_free(result_reverse);
-    //std::cout<<"testing3\n";
+
     return complete_result;
 }
 
@@ -330,10 +326,8 @@ inline AlignmentResult align_edlib(std::string reads, std::string control) {
 }
 
 inline AlignmentResult align(std::string reads, std::string control, parasail_matrix_t *matrix) {
-    if(opt::parasail) {
-	//std::cout<<"testing\n";
+    if(opt::parasail)
         return align_parasail(reads, control, matrix);
-    }
     if(opt::edlib)
         return align_edlib(reads, control);
 }
