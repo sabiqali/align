@@ -277,8 +277,8 @@ void printAlignment(const char* query, const char* target,
 inline AlignmentResult align_parasail(std::string reads, std::string control, parasail_matrix_t *matrix) {
     AlignmentResult complete_result;
     //std::cout<<"testing4\n";
-    //std::string reverse = dna_reverse_complement(reads);
-    std::string reverse = reads;
+    std::string reverse = dna_reverse_complement(reads);
+    //std::string reverse = reads;
     parasail_result_t* result = parasail_sg_trace_scan_16(reads.c_str(),reads.length(),control.c_str(),control.length(),5,4,matrix);
     parasail_traceback_t* traceback = parasail_result_get_traceback(result,reads.c_str(), reads.length(), control.c_str(), control.length(),matrix,'|','*','*');
     parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(), control.c_str(), control.length(),5,4,matrix);
