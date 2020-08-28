@@ -336,7 +336,7 @@ int main(int argc, char *argv[])  {
     gzFile fp;
     kseq_t *seq;
     int l;
-    std::ofstream sam_out_fd;
+    std::ofstream out_fd;
 
     parse_align_options(argc , argv);
 
@@ -344,8 +344,8 @@ int main(int argc, char *argv[])  {
     seq = kseq_init(fp);
     std::ifstream control_fd(opt::control_file);
 
-    if(opt::sam_out) {
-        sam_out_fd.open(opt::output_file);
+    if(opt::sam_out || opt::align_out || opt::table_out) {
+        out_fd.open(opt::output_file);
     }
 	
     std::unordered_map<std::string,std::string> control_substrings;
@@ -382,6 +382,9 @@ int main(int argc, char *argv[])  {
     std::cerr << "Read " << control_count << " control sequences\n";
     if(!opt::print_alignment)
         std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
+
+    if(opt::table_out)
+	out_fd << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
     AlignmentResult best;
     AlignmentResult second_best;
@@ -439,8 +442,11 @@ int main(int argc, char *argv[])  {
         percentage_identity_comp = best.comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
 
         if(opt::sam_out && opt::parasail) {
-            sam_out_fd << seq->name.s << "\t" << (best.orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best.cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
+            out_fd << seq->name.s << "\t" << (best.orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best.cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
         }
+
+	if(opt::table_out && opt::parasail)
+	    out_fd << std::left << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << "\t" << percentage_identity(percentage_identity_comp) << "\t" << best.orientation << std::endl;
 
         if(opt::print_alignment) {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
@@ -472,7 +478,7 @@ int main(int argc, char *argv[])  {
     parasail_matrix_free(matrix);
     //fclose(out_file);
     if(opt::sam_out)
-        sam_out_fd.close();
+        out_fd.close();
     control_fd.close();
     //fclose(control_fd);
     kseq_destroy(seq);
