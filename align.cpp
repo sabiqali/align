@@ -154,6 +154,8 @@ void parse_align_options(int argc, char** argv) {
     }
 }
 
+//omp_set_num_threads(opt::num_threads);
+
 inline void subString_control(const std::string& s, int sub_length,const std::string& probe_name, auto& control_substrings)  { 
     
     int n = s.length();
@@ -414,11 +416,24 @@ int main(int argc, char *argv[])  {
     	//for(const auto& elem: control_set) {
         #pragma omp parallel for
         for(auto i = 0; i<vector_size ; i++) {
-            std::string itr_elem = control_set[i];    
-            std::string sequence2 = itr_elem.substr(itr_elem.find('A')); //used to separate the sequence from the probe no and name
-            std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
-            std::string probe_name_new = temp.substr(0,temp.find('A'));
-            AlignmentResult result = align(sequence,sequence2,matrix);
+	    std::string sequence2,temp,probe_name_new;
+            std::string itr_elem = control_set[i];
+	    int index = itr_elem.find('A');
+	    if(index != std::string::npos)    
+                sequence2 = itr_elem.substr(index); //used to separate the sequence from the probe no and name
+	    else
+		sequence2 = itr_elem;
+	    index = itr_elem.find('F');
+	    if(index != std::string::npos)
+	        temp = itr_elem.substr(index); //used to extract the probe name
+	    else
+		temp = itr_elem;
+	    index = temp.find('A');
+	    if(index != std::string::npos)
+	        probe_name_new = temp.substr(0,index);
+	    else
+		probe_name_new = temp;
+	    AlignmentResult result = align(sequence,sequence2,matrix);
 	    result.oligo = itr_elem;
 	    result.probe_name = probe_name_new;
             #pragma omp critical
@@ -438,8 +453,14 @@ int main(int argc, char *argv[])  {
         int ind2 = best.comp.find('|');
         int ind3 = best.comp.find_last_of('*');
         int ind4 = best.comp.find_last_of('|');
-        int first_char = ind1<ind2?ind1:ind2;
-        percentage_identity_comp = best.comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
+	if(ind1 != -1) {
+            int first_char = ind1<ind2?ind1:ind2;
+            percentage_identity_comp = best.comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
+	}
+	else {
+	    int first_char = ind2;
+	    percentage_identity_comp = best.comp.substr(first_char, (ind4 - first_char));
+ 	}
 
         if(opt::sam_out && opt::parasail) {
             out_fd << seq->name.s << "\t" << (best.orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best.cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
@@ -459,7 +480,8 @@ int main(int argc, char *argv[])  {
             std::cout<<"\n\nSecond Highest Score:"<<second_best.score<<"\nControl Oligo: "<<second_best.oligo<<"\n\n";
             if(opt::parasail)
                 std::cout<<second_best.query<<"\n"<<second_best.comp<<"\n"<<second_best.ref<<"\n\n";
-            //if(opt::edlib)
+	    std::cout<<best.cigar<<std::endl;
+	    //if(opt::edlib)
                 //printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
         }
         else {
