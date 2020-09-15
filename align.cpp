@@ -429,7 +429,7 @@ int main(int argc, char *argv[])  {
 
     std::cerr << "Read " << control_count << " control sequences\n";
     if(!opt::print_alignment)
-        std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
+        std::cout << "read_name\toligo_name\tnum_alignments\tbest_score\tpercentage_identity\torientation" << std::endl;
 
     if(opt::table_out)
 	out_fd << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
@@ -520,7 +520,7 @@ int main(int argc, char *argv[])  {
         }
 
 	if(opt::table_out && opt::parasail)
-	    out_fd << std::left << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << "\t" << percentage_identity(percentage_identity_comp) << "\t" << best.orientation << std::endl;
+	    out_fd << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << "\t" << percentage_identity(percentage_identity_comp) << "\t" << best.orientation << std::endl;
 
         if(opt::print_alignment) {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
