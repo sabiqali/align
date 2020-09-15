@@ -54,6 +54,20 @@ namespace opt {
     static int sam_out = 0;
 }
 
+struct AlignmentResult {
+    int score;
+    std::string probe_name;
+    std::string query;
+    std::string ref;
+    std::string comp;
+    std::string oligo;
+    char orientation;
+    char* cigar;
+    unsigned char* alignment;
+    int* endLocation;
+    int alignmentLength;
+};
+
 static const char* shortopts = "r:c:f:t:p";
 
 enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB, OPT_SAM_OUT };
@@ -139,6 +153,8 @@ void parse_align_options(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 }
+
+//omp_set_num_threads(opt::num_threads);
 
 inline void subString_control(const std::string& s, int sub_length,const std::string& probe_name, auto& control_substrings)  { 
     
@@ -260,11 +276,69 @@ void printAlignment(const char* query, const char* target,
     }
 }
 
+inline AlignmentResult align_parasail(std::string reads, std::string control, parasail_matrix_t *matrix) {
+    AlignmentResult complete_result;
+    std::string reverse = dna_reverse_complement(reads);
+    
+    parasail_result_t* result = parasail_sg_trace_scan_16(reads.c_str(),reads.length(),control.c_str(),control.length(),5,4,matrix);
+    parasail_traceback_t* traceback = parasail_result_get_traceback(result,reads.c_str(), reads.length(), control.c_str(), control.length(),matrix,'|','*','*');
+    parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(), control.c_str(), control.length(),5,4,matrix);
+    parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), control.c_str(), control.length(),matrix,'|','*','*');
+    parasail_cigar_t* cigar = result->score > result_reverse->score ? parasail_result_get_cigar(result, reads.c_str(), reads.length(), control.c_str(), control.length(), matrix) : parasail_result_get_cigar(result_reverse, reverse.c_str(), reverse.length(), control.c_str(), control.length(), matrix);
+    char* cigar_decoded = parasail_cigar_decode(cigar);
+    
+    if(result->score > result_reverse->score) {
+	
+        complete_result.score = result->score;
+        complete_result.ref = traceback ->ref;
+        complete_result.comp = traceback->comp;
+        complete_result.query = traceback->query;
+        complete_result.orientation = '+';
+        complete_result.cigar = cigar_decoded;
+    }
+    else {
+        complete_result.score = result_reverse->score;
+        complete_result.ref = traceback_reverse ->ref;
+        complete_result.comp = traceback_reverse->comp;
+        complete_result.query = traceback_reverse->query;
+        complete_result.orientation = '-';
+        complete_result.cigar = cigar_decoded;
+    }
+    parasail_traceback_free(traceback);
+    parasail_result_free(result);
+    parasail_traceback_free(traceback_reverse);
+    parasail_result_free(result_reverse);
+
+    return complete_result;
+}
+
+inline AlignmentResult align_edlib(std::string reads, std::string control) {
+    AlignmentResult complete_result;
+
+    EdlibAlignResult result = edlibAlign(reads.c_str(), reads.length(), control.c_str(), control.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+    
+    complete_result.score = result.editDistance;
+    complete_result.alignment = result.alignment;
+    complete_result.alignmentLength = result.alignmentLength;
+    complete_result.endLocation = result.endLocations;
+        
+    edlibFreeAlignResult(result);
+
+    return complete_result;
+}
+
+inline AlignmentResult align(std::string reads, std::string control, parasail_matrix_t *matrix) {
+    if(opt::parasail)
+        return align_parasail(reads, control, matrix);
+    if(opt::edlib)
+        return align_edlib(reads, control);
+}
+
 int main(int argc, char *argv[])  {
     gzFile fp;
     kseq_t *seq;
     int l;
-    std::ofstream sam_out_fd;
+    std::ofstream out_fd;
 
     parse_align_options(argc , argv);
 
@@ -272,17 +346,13 @@ int main(int argc, char *argv[])  {
     seq = kseq_init(fp);
     std::ifstream control_fd(opt::control_file);
 
-    if(opt::sam_out) {
-        sam_out_fd.open(opt::output_file);
+    if(opt::sam_out || opt::align_out || opt::table_out) {
+        out_fd.open(opt::output_file);
     }
 	
     std::unordered_map<std::string,std::string> control_substrings;
 	
-    parasail_result_t *best_result = NULL;
     parasail_matrix_t *matrix = parasail_matrix_create("ACGT", 5, -1);	
-    
-    std::string best_query,best_ref,best_comp,best_oligo, best_probe_name;
-    std::string second_best_query,second_best_ref,second_best_comp,second_best_oligo;
 
     int read_aligns;
 
@@ -315,12 +385,11 @@ int main(int argc, char *argv[])  {
     if(!opt::print_alignment)
         std::cout << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
-    unsigned char  *best_alignment, *second_best_alignment; 
-    char *best_cigar;
-    int best_alignmentLength, second_best_alignmentLength;
-    int *best_endLocations, *second_best_endLocations;
+    if(opt::table_out)
+	out_fd << "read_name\toligo_name\tnum_alignments\tbest_sccore\tpercentage_identity\torientation" << std::endl;
 
-    char orientation;
+    AlignmentResult best;
+    AlignmentResult second_best;
 
     int read_count = 0;
     while ((l = kseq_read(seq)) >= 0) {
@@ -339,119 +408,94 @@ int main(int argc, char *argv[])  {
             } 
         }
 
+	best.score = 0;
+
 	int num_alignments = 0;
 	int vector_size = control_set.size();
 	//#pragma omp parallel for
     	//for(const auto& elem: control_set) {
         #pragma omp parallel for
         for(auto i = 0; i<vector_size ; i++) {
-            std::string itr_elem = control_set[i];    
-            std::string sequence2 = itr_elem.substr(itr_elem.find('A')); //used to separate the sequence from the probe no and name
-            std::string temp = itr_elem.substr(itr_elem.find('F')); //used to extract the probe name
-            std::string probe_name_new = temp.substr(0,temp.find('A'));
-            std::string reverse = dna_reverse_complement(sequence);
-            if(opt::parasail) {
-                parasail_result_t* result = parasail_sg_trace_scan_16(seq->seq.s,sequence.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
-                parasail_traceback_t* traceback = parasail_result_get_traceback(result,seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
-                parasail_result_t* result_reverse = parasail_sg_trace_scan_16(reverse.c_str(),reverse.length(),sequence2.c_str(),sequence2.length(),5,4,matrix);
-                parasail_traceback_t* traceback_reverse = parasail_result_get_traceback(result_reverse,reverse.c_str(), reverse.length(), sequence2.c_str(), sequence2.length(),matrix,'|','*','*');
-                parasail_cigar_t* cigar = result->score > result_reverse->score ? parasail_result_get_cigar(result, seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), matrix) : parasail_result_get_cigar(result_reverse, reverse.c_str(), reverse.length(), sequence2.c_str(), sequence2.length(), matrix);
-                char* cigar_decoded = parasail_cigar_decode(cigar);
-                if(result->score > result_reverse->score) {
-                    #pragma omp critical
-                    if(result->score > max) {
-                        second_max = max;
-                        max = result->score;
-                        best_probe_name = probe_name_new;
-                        second_best_query = best_query;
-                        second_best_ref = best_ref;
-                        second_best_comp = best_comp;
-                        best_ref = traceback ->ref;
-                        best_comp = traceback->comp;
-                        best_query = traceback->query;
-                        second_best_oligo = best_oligo;
-                        best_oligo = itr_elem;
-                        orientation = '+';
-                        best_cigar = cigar_decoded;
-                    }
-                }
-                else {
-                    #pragma omp critical
-                    if(result_reverse->score > max) {
-                        second_max = max;
-                        max = result_reverse->score;
-                        best_probe_name = probe_name_new;
-                        second_best_query = best_query;
-                        second_best_ref = best_ref;
-                        second_best_comp = best_comp;
-                        best_ref = traceback_reverse ->ref;
-                        best_comp = traceback_reverse->comp;
-                        best_query = traceback_reverse->query;
-                        second_best_oligo = best_oligo;
-                        best_oligo = itr_elem;
-                        orientation = '-';
-                        best_cigar = cigar_decoded;
-                    }
-                }
-                parasail_traceback_free(traceback);
-                parasail_result_free(result);
-                parasail_traceback_free(traceback_reverse);
-                parasail_result_free(result_reverse);
-            }
-            if(opt::edlib) {
-                EdlibAlignResult result = edlibAlign(seq->seq.s, sequence.length(), sequence2.c_str(), sequence2.length(), edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-	    	#pragma omp critical
-                if(result.editDistance > max) {
-                    second_max = max;
-                    max = result.editDistance;
-                    best_probe_name = probe_name_new;
-                    second_best_oligo = best_oligo;
-                    best_oligo = sequence2;
-                    second_best_alignment = best_alignment;
-                    best_alignment = result.alignment;
-                    second_best_alignmentLength = best_alignmentLength;
-                    best_alignmentLength = result.alignmentLength;
-                    second_best_endLocations = best_endLocations;
-                    best_endLocations = result.endLocations;
-                }
-                edlibFreeAlignResult(result);
+	    std::string sequence2,temp,probe_name_new;
+            std::string itr_elem = control_set[i];
+	    int index = itr_elem.find('A');
+	    if(index != std::string::npos)    
+                sequence2 = itr_elem.substr(index); //used to separate the sequence from the probe no and name
+	    else
+		sequence2 = itr_elem;
+	    index = itr_elem.find('F');
+	    if(index != std::string::npos)
+	        temp = itr_elem.substr(index); //used to extract the probe name
+	    else
+		temp = itr_elem;
+	    index = temp.find('A');
+	    if(index != std::string::npos)
+	        probe_name_new = temp.substr(0,index);
+	    else
+		probe_name_new = temp;
+
+	    AlignmentResult result = align(sequence,sequence2,matrix);
+	    result.oligo = itr_elem;
+	    result.probe_name = probe_name_new;
+            #pragma omp critical
+            if(result.score > best.score) {
+                //result.oligo = itr_elem;
+                //result.probe_name = probe_name_new;
+                second_best = best;
+                best = result;
             }
     	    
 	    num_alignments++;
         }   
         
         read_count++;
+	
         std::string percentage_identity_comp;
-        int ind1 = best_comp.find('*');
-        int ind2 = best_comp.find('|');
-        int ind3 = best_comp.find_last_of('*');
-        int ind4 = best_comp.find_last_of('|');
-        int first_char = ind1<ind2?ind1:ind2;
-        percentage_identity_comp = best_comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
+        int ind1 = best.comp.find('*');
+        int ind2 = best.comp.find('|');
+        int ind3 = best.comp.find_last_of('*');
+        int ind4 = best.comp.find_last_of('|');
+	//std::cout<<ind1<<" "<<ind2<<" "<<ind3<<" "<<ind4;
+	if(ind2 != -1) {
+	if(ind1 >= 0 && ind1 <= best.comp.length()) {
+            int first_char = ind1<ind2?ind1:ind2;
+            percentage_identity_comp = best.comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
+	}
+	else {
+	    int first_char = ind2;
+	    percentage_identity_comp = best.comp.substr(first_char, (ind4 - first_char));
+ 	}
+	}
+	else 
+	    percentage_identity_comp = ' ';
 
         if(opt::sam_out && opt::parasail) {
-            sam_out_fd << seq->name.s << "\t" << (orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best_cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
+            out_fd << seq->name.s << "\t" << (best.orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best.cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
         }
+
+	if(opt::table_out && opt::parasail)
+	    out_fd << std::left << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << "\t" << percentage_identity(percentage_identity_comp) << "\t" << best.orientation << std::endl;
 
         if(opt::print_alignment) {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
             std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
-            std::cout<<"\nHighest Score: "<<max<<"\nControl Oligo: "<<best_oligo<<"\n\n";
+            std::cout<<"\nHighest Score: "<<best.score<<"\nControl Oligo: "<<best.oligo<<"\n\n";
             if(opt::parasail) 
-                std::cout<<best_query<<"\n"<<best_comp<<"\n"<<best_ref;
+                std::cout<<best.query<<"\n"<<best.comp<<"\n"<<best.ref;
             if(opt::edlib)
-                printAlignment(seq->seq.s, best_oligo.c_str(), best_alignment, best_alignmentLength, *(best_endLocations), EDLIB_MODE_NW);
-            std::cout<<"\n\nSecond Highest Score:"<<second_max<<"\nControl Oligo: "<<second_best_oligo<<"\n\n";
+                printAlignment(seq->seq.s, best.oligo.c_str(), best.alignment, best.alignmentLength, *(best.endLocation), EDLIB_MODE_NW);
+            std::cout<<"\n\nSecond Highest Score:"<<second_best.score<<"\nControl Oligo: "<<second_best.oligo<<"\n\n";
             if(opt::parasail)
-                std::cout<<second_best_query<<"\n"<<second_best_comp<<"\n"<<second_best_ref<<"\n\n";
-            //if(opt::edlib)
+                std::cout<<second_best.query<<"\n"<<second_best.comp<<"\n"<<second_best.ref<<"\n\n";
+	    std::cout<<best.cigar<<std::endl;
+	    //if(opt::edlib)
                 //printAlignment(seq->seq.s, second_best_oligo.c_str(), second_best_alignment, second_best_alignmentLength, *(second_best_endLocations), EDLIB_MODE_NW);
         }
         else {
             if(opt::parasail)
-                std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << "\t" << percentage_identity(percentage_identity_comp) << "\t" << orientation << std::endl;	
+                std::cout << std::left << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << "\t" << percentage_identity(percentage_identity_comp) << "\t" << best.orientation << std::endl;	
             if(opt::edlib)
-                std::cout << std::left << seq->name.s << "\t" << best_probe_name << "\t" << num_alignments << "\t" << max << std::endl;
+                std::cout << std::left << seq->name.s << "\t" << best.probe_name << "\t" << num_alignments << "\t" << best.score << std::endl;
         }
 	/*output_file<<"\n\n\nSequence "<<c<<" : "<<seq->seq.s;
         output_file<<"\nHighest Score: "<<max<<"\nProbe Name:"<<best_probe_no;
@@ -463,7 +507,7 @@ int main(int argc, char *argv[])  {
     parasail_matrix_free(matrix);
     //fclose(out_file);
     if(opt::sam_out)
-        sam_out_fd.close();
+        out_fd.close();
     control_fd.close();
     //fclose(control_fd);
     kseq_destroy(seq);
