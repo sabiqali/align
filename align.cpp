@@ -433,6 +433,7 @@ int main(int argc, char *argv[])  {
 	        probe_name_new = temp.substr(0,index);
 	    else
 		probe_name_new = temp;
+
 	    AlignmentResult result = align(sequence,sequence2,matrix);
 	    result.oligo = itr_elem;
 	    result.probe_name = probe_name_new;
@@ -448,12 +449,15 @@ int main(int argc, char *argv[])  {
         }   
         
         read_count++;
+	
         std::string percentage_identity_comp;
         int ind1 = best.comp.find('*');
         int ind2 = best.comp.find('|');
         int ind3 = best.comp.find_last_of('*');
         int ind4 = best.comp.find_last_of('|');
-	if(ind1 != -1) {
+	//std::cout<<ind1<<" "<<ind2<<" "<<ind3<<" "<<ind4;
+	if(ind2 != -1) {
+	if(ind1 >= 0 && ind1 <= best.comp.length()) {
             int first_char = ind1<ind2?ind1:ind2;
             percentage_identity_comp = best.comp.substr( first_char , ind3>ind4?(ind3 - first_char):(ind4 - first_char));
 	}
@@ -461,6 +465,9 @@ int main(int argc, char *argv[])  {
 	    int first_char = ind2;
 	    percentage_identity_comp = best.comp.substr(first_char, (ind4 - first_char));
  	}
+	}
+	else 
+	    percentage_identity_comp = ' ';
 
         if(opt::sam_out && opt::parasail) {
             out_fd << seq->name.s << "\t" << (best.orientation == '+' ? "4" : "16") << "\t*\t0\t255\t" << best.cigar << "\t*\t0\t0\t" << seq->seq.s << "\t*\n"; 
