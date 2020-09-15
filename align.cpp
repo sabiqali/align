@@ -199,39 +199,39 @@ std::string cigar_parser(char* cigar_to_parse) {
     new_cigar[new_cigar.find('I')] = 'S';
     new_cigar[new_cigar.length() - 1] = new_cigar[new_cigar.length() - 1] == 'D'?'D':'S';
     std::cout<<new_cigar<<"\n";
-	std::string final_cigar = "";
+    std::string final_cigar = "";
     int num_mem1 = 0, num_mem2 = 0;
     char char_mem1, char_mem2;
 
     for(int i = 0; i < new_cigar.length(); i++)  {
-		if(isdigit(new_cigar[i])) {
-			num_mem1 = (num_mem1*10) + (new_cigar[i] - '0');
-			//std::cout<<num_mem1; 
-		}
-		if(new_cigar[i] == 'S') {
-			if(num_mem2 != 0)
-			    final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;			
-			num_mem2 = num_mem1;
-			char_mem2 = new_cigar[i];
-			num_mem1 = 0;
-		}
-		if(new_cigar[i] == 'M' || new_cigar[i] == 'I' || new_cigar[i] == 'D') {
-			//std::cout<<num_mem1;
-			if(char_mem2 == new_cigar[i]) {
-				num_mem2 += num_mem1;
-			}
-			if(char_mem2 != new_cigar[i]) {
-				final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;
-				num_mem2 = num_mem1;
-				char_mem2 = new_cigar[i];
-			}
-			//final_cigar = final_cigar + std::to_string(num_mem1) + "M";
-			num_mem1 = 0;
-		}	
+	if(isdigit(new_cigar[i])) {
+	    num_mem1 = (num_mem1*10) + (new_cigar[i] - '0');
+	    //std::cout<<num_mem1; 
+	}
+	if(new_cigar[i] == 'S') {
+	    if(num_mem2 != 0)
+	    final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;			
+	    num_mem2 = num_mem1;
+	    char_mem2 = new_cigar[i];
+	    num_mem1 = 0;
+	}
+	if(new_cigar[i] == 'M' || new_cigar[i] == 'I' || new_cigar[i] == 'D') {
+	    //std::cout<<num_mem1;
+	    if(char_mem2 == new_cigar[i]) {
+	        num_mem2 += num_mem1;
+	    }
+	    if(char_mem2 != new_cigar[i]) {
+		final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;
+		num_mem2 = num_mem1;
+		char_mem2 = new_cigar[i];
+	    }
+	    //final_cigar = final_cigar + std::to_string(num_mem1) + "M";
+	    num_mem1 = 0;
+	}	
     }
-	final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;
+    final_cigar = final_cigar + std::to_string(num_mem2) + char_mem2;
 
-	return final_cigar;
+    return final_cigar;
 }
 
 std::string removeDupWord(std::string str)  {
@@ -560,4 +560,3 @@ int main(int argc, char *argv[])  {
     gzclose(fp);
     return 0;
 }
-
