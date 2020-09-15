@@ -268,10 +268,10 @@ std::string dna_reverse_complement(std::string seq) {
     return seq;
 }
 
-int percentage_identity(std::string comp) {
+float percentage_identity(std::string comp) {
     std::size_t matches = std::count(comp.begin(),comp.end(),'|');
 
-    return ((matches*100)/comp.length());
+    return (((float)(matches*100)/(float)comp.length()));
 }
 
 void printAlignment(const char* query, const char* target,
