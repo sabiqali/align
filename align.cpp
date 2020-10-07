@@ -18,6 +18,7 @@
 #include <sstream>
 #include <getopt.h>
 #include <omp.h>
+#include "gap_affine/affine_wavefront_align.h"
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -39,6 +40,7 @@ static const char *ALIGN_MESSAGE =
 "      --SAM_out                        the output to file will be a SAM file\n"
 "  -t, --threads=NUM                    use NUM threads (default: 1)\n"
 "      --parasail                       use the parasail library to generate the alignment sequence\n"
+"      --wavefront                      use the WFA library to compute the alignment sequence\n"
 "      --edlib                          use the edlib library to produce the alignment sequence\n\n";
 
 namespace opt {
@@ -52,6 +54,7 @@ namespace opt {
     static int edlib = 0;
     static int num_threads = 1;
     static int sam_out = 0;
+    static int wfa;
 }
 
 struct AlignmentResult {
@@ -66,11 +69,12 @@ struct AlignmentResult {
     unsigned char* alignment;
     int* endLocation;
     int alignmentLength;
+    affine_wavefronts_t* affine_wavefronts;
 };
 
 static const char* shortopts = "r:c:f:t:p";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB, OPT_SAM_OUT };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_WFA, OPT_EDLIB, OPT_SAM_OUT };
 
 static const struct option longopts[] = {
     { "print_alignment",      no_argument,       NULL, 'p' },
@@ -82,6 +86,7 @@ static const struct option longopts[] = {
     { "align_out",            no_argument,       NULL, OPT_ALIGN_OUT },
     { "sam_out",              no_argument,       NULL, OPT_SAM_OUT },
     { "parasail",             no_argument,       NULL, OPT_PARASAIL },
+    { "wavefront",            no_argument,       NULL, OPT_WFA },
     { "edlib",                no_argument,       NULL, OPT_EDLIB },
     { "help",                 no_argument,       NULL, OPT_HELP },
     { "version",              no_argument,       NULL, OPT_VERSION },
@@ -103,6 +108,7 @@ void parse_align_options(int argc, char** argv) {
             case OPT_ALIGN_OUT: opt::align_out = 1; break;
             case OPT_SAM_OUT: opt::sam_out = 1; break;
             case OPT_PARASAIL: opt::parasail = 1; break;
+	    case OPT_WFA: opt::wfa = 1; break;
             case OPT_EDLIB: opt::edlib = 1; break;
             case OPT_HELP:
                 std::cout << ALIGN_MESSAGE;
@@ -358,6 +364,45 @@ inline AlignmentResult align_parasail(std::string reads, std::string control, pa
     return complete_result;
 }
 
+inline AlignmentResult align_WFA(std::string reads, std::string control, affine_penalties_t affine_penalties, mm_allocator_t* const mm_allocator) {
+    
+    AlignmentResult complete_result;
+    std::string reverse = dna_reverse_complement(reads);
+
+    //mm_allocator_t* const mm_allocator = mm_allocator_new(BUFFER_SIZE_8M);
+
+    affine_wavefronts_t* affine_wavefronts = affine_wavefronts_new_complete(strlen(control.c_str()),strlen(reads.c_str()),&affine_penalties,NULL,mm_allocator);
+
+    affine_wavefronts_align(affine_wavefronts,control.c_str(),strlen(control.c_str()),reads.c_str(),strlen(reads.c_str()));
+
+    const int score = edit_cigar_score_gap_affine(&affine_wavefronts->edit_cigar,&affine_penalties);
+
+    affine_wavefronts_t* affine_wavefronts_reverse = affine_wavefronts_new_complete(strlen(control.c_str()),strlen(reverse.c_str()),&affine_penalties,NULL,mm_allocator);
+
+    affine_wavefronts_align(affine_wavefronts_reverse,control.c_str(),strlen(control.c_str()),reverse.c_str(),strlen(reverse.c_str()));
+
+    const int score_reverse = edit_cigar_score_gap_affine(&affine_wavefronts_reverse->edit_cigar,&affine_penalties);
+
+    if(score > score_reverse) {
+    	complete_result.score = score;
+	complete_result.orientation = '+';
+	complete_result.affine_wavefronts = affine_wavefronts;
+    }
+    else {
+    	complete_result.score = score_reverse;
+	complete_result.orientation = '-';
+	complete_result.affine_wavefronts = affine_wavefronts_reverse;
+    }
+
+    affine_wavefronts_delete(affine_wavefronts);
+    affine_wavefronts_delete(affine_wavefronts_reverse);
+
+    //mm_allocator_delete(mm_allocator);
+
+    return complete_result;
+
+}
+
 inline AlignmentResult align_edlib(std::string reads, std::string control) {
     AlignmentResult complete_result;
 
@@ -373,11 +418,13 @@ inline AlignmentResult align_edlib(std::string reads, std::string control) {
     return complete_result;
 }
 
-inline AlignmentResult align(std::string reads, std::string control, parasail_matrix_t *matrix) {
+inline AlignmentResult align(std::string reads, std::string control, parasail_matrix_t *matrix, affine_penalties_t affine_penalties, mm_allocator_t* const mm_allocator) {
     if(opt::parasail)
         return align_parasail(reads, control, matrix);
     if(opt::edlib)
         return align_edlib(reads, control);
+    if(opt::wfa)
+	return align_WFA(reads, control, affine_penalties, mm_allocator);
 }
 
 int main(int argc, char *argv[])  {
@@ -399,6 +446,17 @@ int main(int argc, char *argv[])  {
     std::unordered_map<std::string,std::string> control_substrings;
 	
     parasail_matrix_t *matrix = parasail_matrix_create("ACGT", 5, -1);	
+
+    mm_allocator_t* const mm_allocator = mm_allocator_new(BUFFER_SIZE_8M);
+
+    affine_penalties_t affine_penalties = {
+        .match = 0,
+        .mismatch = 4,
+        .gap_opening = 6,
+        .gap_extension = 2,
+    };
+
+    //mm_allocator_t* const mm_allocator = mm_allocator_new(BUFFER_SIZE_8M);
 
     int read_aligns;
 
@@ -480,7 +538,7 @@ int main(int argc, char *argv[])  {
 	    else
 		probe_name_new = temp;
 
-	    AlignmentResult result = align(sequence,sequence2,matrix);
+	    AlignmentResult result = align(sequence,sequence2,matrix, affine_penalties, mm_allocator);
 	    result.oligo = itr_elem;
 	    result.probe_name = probe_name_new;
             #pragma omp critical
@@ -526,6 +584,8 @@ int main(int argc, char *argv[])  {
             std::cout<<"\n\n\nSequence "<<read_count<<" : "<<seq->seq.s;
             std::cout<<"\nAligned to: "<<read_aligns<<" control oligos";
             std::cout<<"\nHighest Score: "<<best.score<<"\nControl Oligo: "<<best.oligo<<"\n\n";
+	    if(opt::wfa) 
+		edit_cigar_print_pretty(stderr, best.oligo.c_str(),strlen(best.oligo.c_str()),seq->seq.s,strlen(seq->seq.s), &best.affine_wavefronts->edit_cigar,mm_allocator);
             if(opt::parasail) 
                 std::cout<<best.query<<"\n"<<best.comp<<"\n"<<best.ref;
             if(opt::edlib)
@@ -551,6 +611,7 @@ int main(int argc, char *argv[])  {
     }
 
     parasail_matrix_free(matrix);
+    mm_allocator_delete(mm_allocator);
     //fclose(out_file);
     if(opt::sam_out)
         out_fd.close();
