@@ -31,6 +31,8 @@ static const char *ALIGN_MESSAGE =
 "  -p, --print_alignment                display best alignment for every read\n"
 "      --version                        display version\n"
 "      --help                           display this help and exit\n"
+"      --spacer_inserted                flag used to indicate that a prefix/suffix has been inserted along with a spacer sequence\n"
+"  -s, --spacer=FILE                    the Spacer sequence in fastq/fasta FILE\n"
 "  -r, --reads=FILE                     the ONT reads are in fastq FILE\n"
 "  -c, --control=FILE                   the control oligos that are in a text FILE\n"
 "  -f, --output_file=FILE               the file to which the score will be output to\n"
@@ -46,12 +48,14 @@ namespace opt {
     static std::string reads_file;
     static std::string control_file;
     static std::string output_file;
+    static std::string spacer_file;
     static int table_out = 0;
     static int align_out = 0;
     static int parasail = 0;
     static int edlib = 0;
     static int num_threads = 1;
     static int sam_out = 0;
+    static int spacer_inserted = 0;
 }
 
 struct AlignmentResult {
@@ -68,9 +72,9 @@ struct AlignmentResult {
     int alignmentLength;
 };
 
-static const char* shortopts = "r:c:f:t:p";
+static const char* shortopts = "r:c:f:t:p:s";
 
-enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB, OPT_SAM_OUT };
+enum { OPT_HELP = 1, OPT_VERSION, OPT_TABLE_OUT, OPT_ALIGN_OUT, OPT_PARASAIL, OPT_EDLIB, OPT_SAM_OUT, OPT_SPACER_INSERTED };
 
 static const struct option longopts[] = {
     { "print_alignment",      no_argument,       NULL, 'p' },
@@ -78,6 +82,8 @@ static const struct option longopts[] = {
     { "control",              required_argument, NULL, 'c' },
     { "output_file",          required_argument, NULL, 'f' },
     { "threads",              required_argument, NULL, 't' },
+    { "spacer",               required_argument, NULL, 's' },
+    { "spacer_inserted",      no_argument,       NULL, OPT_SPACER_INSERTED },
     { "table_out",            no_argument,       NULL, OPT_TABLE_OUT },
     { "align_out",            no_argument,       NULL, OPT_ALIGN_OUT },
     { "sam_out",              no_argument,       NULL, OPT_SAM_OUT },
@@ -99,6 +105,8 @@ void parse_align_options(int argc, char** argv) {
             case 'f': arg >> opt::output_file; break;
             case '?': die = true; break;
             case 't': arg >> opt::num_threads; break;
+            case 's': arg >> opt::spacer_file; break;
+            case OPT_SPACER_INSERTED: opt::spacer_inserted = 1; break;
             case OPT_TABLE_OUT: opt::table_out = 1; break;
             case OPT_ALIGN_OUT: opt::align_out = 1; break;
             case OPT_SAM_OUT: opt::sam_out = 1; break;
@@ -137,10 +145,15 @@ void parse_align_options(int argc, char** argv) {
         die = true;
     }
 
-    /*if(opt::output_file.empty()) {
-        std::cerr << "Align: a --output file must be provided\n";
+    if(opt::spacer_file.empty() && opt::spacer_inserted) {
+        std::cerr << "Align: a --spacer file must be provided\n";
         die = true;
-    }*/
+    }
+
+    if(opt::output_file.empty() && (opt::align_out || opt::sam_out || opt::table_out)) {
+        std::cerr << "Align: an --output file must be provided\n";
+        die = true;
+    }
 
     if(opt::parasail == 0 && opt::edlib == 0) {
         std::cerr << "Align: processing option must be selected. Please selected either --parasail or --edlib\n";
@@ -266,6 +279,32 @@ std::string dna_reverse_complement(std::string seq) {
         }
     }
     return seq;
+}
+
+void find_pos(std::string seq, std::string input, std::string spacer) {
+    std::string temp = input;
+
+    int cut_seq = 0;
+
+    while(temp.find(spacer) != std::string::npos) {
+        std::cout<< seq << "\t" << (temp.find(spacer) + cut_seq)<<"\t"<<spacer.length()<<"\t+" << std::endl;
+
+        cut_seq = temp.find(spacer) + spacer.length();
+
+        temp = temp.substr(cut_seq);
+    }
+
+    temp = dna_reverse_complement(input);
+
+    while(temp.find(spacer) != std::string::npos) {
+        std::cout<< seq << "\t" << (temp.find(spacer) + cut_seq)<<"\t"<<spacer.length()<<"\t-" << std::endl;
+
+        cut_seq = temp.find(spacer) + spacer.length();
+
+        temp = temp.substr(cut_seq);
+    }
+
+    return;
 }
 
 float percentage_identity(std::string comp) {
@@ -437,13 +476,60 @@ int main(int argc, char *argv[])  {
     AlignmentResult best;
     AlignmentResult second_best;
 
+    std::string spacer_sequence = "CGTATTGCGTCGAACAACCTCAACCCGTACGGAAACGGCTGAGCAGCAACTGGCACTTCAACTCCCCTGAAATAATACGCGTAAATCTGTATAGAGTTTCCTGGGGTTTTGTTCAGGACGCTCATCCCCAATCCCCTCTTTGTGTCCGACGACTCAGTTGCTTCTTAGGACATACTGACGCACTCCCGCACGAATGAGCCCTCCATTACATAACAAAAGGCATTGATCCATCACTGGTGGTAGTCGTTCATTGGTTAGTAACAGGAATAGCACCTATATGCGCCAGCGCTTATGCACATAAATGTGCATGAAGCCGTAAAAGCGACACACATTACGCAGGCTCTATGATAGAGCACATCTCCATCCTATCCACCTGAGTGAGCCAACCATCGCCTGTCTGATGCCTTTAGCGCTGCGACTCCTATAGGCCCCCCGTTGGCAAGTAAACCCCTACTCGCCCACCTTGACAGAGCTCTTCGGTATAGTCAGTATGACCAGGAACCATTGGCGCGGGCTAAGGCCAAAAAGTAACGCTACTGGAGGATTCGTTCATGCTAATGATCGGTATCCTGATTTGCTGTCGGTTGATATATAGGTTCCTGGACAGCGCTAGTCGATCCGTGAAGTGGAACTACGTTCAAACGGGTCCTCATGTAAGAGCAACGCGTAGTGTTAATTAGGCAGCAGTACAGCCCGATCGCTCCGCAGTTACCCATTTGGGATACGAATCTGGCCTTCGGATTTGCTGATCACGCAACCGGGGTGGTCGCCCATGAAACTCGCCGACAGATTAAGAGAGGCCTGCGACAGCAGCGTCGAGAAAGCATTTGAAGCCCTGGAGCTTCCATAGAGTATTATTGCTACCCCACATGGAACTTCATGCCCAACCGAACCCCTTAATGGGGAACCAATTCAAGCAAAGGGACTAGCCTTTACACTAGGCCGATCTATATCCTTCATCCTCAGTGACCCTGGTCCACACGTAGTGCTTAAAAGCATGGTTATGTCGATCAAGCATTCTTGACGGGTGAGGCAATTTCGGTACACCGAACCGTTCCCCTTGCGGTTGATCCGTATTGTCTCTTAGCAGGAGTTGTGCCAGCTGCTAACTCGCCCCGAAGGATTAACGGTATCAGGAGTGCAATCAAAGCAGCCTCTGTTAACACCCGGCTGGGGACGGGCTAATTCGCATACCTTATAATACCGAAGGGAACACAGCCGAGGGTTCTTATAAGCACTATACCCATTTACCGAACGGATATACTCGCGTGGTTTAGCTTCGGATGCCCGTTTTCACGAACAGATGTACAGATCCCTGACCTCATAGGACTTTATTCTGGTATGCCATCAACATGATGAAGCTCAGACAGTCGGACGTTTTGGACGTCTTCCATAATTGTGTTCTTCCGTAAGTCCAGCAAGGGAAGAAATAACCCACGTTTTAGGCATAAGACGTCTAGTCCATATCTCTAGCCGGCACGAATCAATCAGGATTACGCCCCGCCAGTGCCAGACCCAGGTGTGCGCCGCGGAGCCATAAGATGAAACCTCGCGTTTTCTACGTTATTTTCTCCTCGAAAGATTAAACGGACCCGGATTCATCCGTATCGGCTACCACGTTATACCGCCTTTTCGACTCAAGTGTGATTTTTGATTCCAATGAGCCCTACTGTGGCGTCTCACTGAGACAGAGTCAGTAAGTTTTATCTCACCGCGTCTCCCCCCAAAATTTACCACGTACTCCCCTGTTACATGTTCAATTCTCGTGCCATTTTTCGAAGGTAAGTTATTAGGCCCGTCGGCCGAGATAGGATGCCACAGTTAGAGGTGTCTTGCGTGGAACCTCTGGGAATAGTAAGACATCGAGACCCTCATCATGGGAGCATACGGGGTGTTGCCAACGTATCTTAGGAAGGCCCTTCTTATGGTGTAGTGCTTTCAAGGCTCAAACGACGCGTTTGTAGCTGCTTTTACTCCCGTTCAATTTCGGCCAATATAGA";
+
     int read_count = 0;
     while ((l = kseq_read(seq)) >= 0) {
 	max = 0;
 	second_max = 0;
         std::string sequence(seq->seq.s);
         std::unordered_map<std::string,int> test_substrings;
-        subString_test(sequence, k, test_substrings);
+
+        std::string cut_string_temp = sequence;
+        int cut_seq;
+
+        if(opt::spacer_inserted)
+            while(cut_string_temp.find(spacer_sequence) != std::string::npos) {
+                std::cout<< seq << "\t" << (cut_string_temp.find(spacer_sequence) + cut_seq)<<"\t"<<spacer_sequence.length()<<"\t+" << std::endl;
+
+                cut_seq = cut_string_temp.find(spacer_sequence) + spacer_sequence.length();
+
+                cut_string_temp = cut_string_temp.substr(cut_seq);
+
+                if(cut_string_temp.find(spacer_sequence) != std::string::npos) {
+                    std::string oligo = cut_string_temp.substr(0,cut_string_temp.find(spacer_sequence));
+
+                    subString_test(sequence, k, test_substrings);
+                }
+                else {
+                    std::string oligo = cut_string_temp;
+
+                    subString_test(oligo, k, test_substrings);
+                }
+            }
+
+            cut_string_temp = dna_reverse_complement(sequence);
+
+            while(cut_string_temp.find(spacer_sequence) != std::string::npos) {
+                std::cout<< seq << "\t" << (cut_string_temp.find(spacer_sequence) + cut_seq)<<"\t"<<spacer_sequence.length()<<"\t-" << std::endl;
+
+                cut_seq = cut_string_temp.find(spacer_sequence) + spacer_sequence.length();
+
+                cut_string_temp = cut_string_temp.substr(cut_seq);
+
+                if(cut_string_temp.find(spacer_sequence) != std::string::npos) {
+                    std::string oligo = cut_string_temp.substr(0,cut_string_temp.find(spacer_sequence));
+
+                    subString_test(sequence, k, test_substrings);
+                }
+                else {
+                    std::string oligo = cut_string_temp;
+
+                    subString_test(oligo, k, test_substrings);
+                }
+            }
+        else
+            subString_test(sequence, k, test_substrings);
 
         // Find the set of control oligos that share a k-mer with the read
         std::vector<std::string> control_set;
