@@ -488,7 +488,7 @@ int main(int argc, char *argv[])  {
         std::string cut_string_temp = sequence;
         int cut_seq;
 
-        if(opt::spacer_inserted)
+        if(opt::spacer_inserted) {
             while(cut_string_temp.find(spacer_sequence) != std::string::npos) {
                 std::cout<< seq << "\t" << (cut_string_temp.find(spacer_sequence) + cut_seq)<<"\t"<<spacer_sequence.length()<<"\t+" << std::endl;
 
@@ -528,6 +528,7 @@ int main(int argc, char *argv[])  {
                     subString_test(oligo, k, test_substrings);
                 }
             }
+        }
         else
             subString_test(sequence, k, test_substrings);
 
